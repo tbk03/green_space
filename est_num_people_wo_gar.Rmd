@@ -1,0 +1,277 @@
+---
+title: "Estimating the number of people without a garden"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+
+library(janitor)    # for data cleaning
+library(readxl)     # for readig excel files
+library(visdat)     # for a quick look at data quality
+```
+
+## Processing the data
+
+### Gardens data
+
+Dataset downloaded from [ONS](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) on 5th June 2021. Both gardens space and public parks datasets are the April 2020 versions.
+
+```{r}
+# a convenience function for renaming columns
+# I am sure there is a better way to do this!
+replace_in_column_name <- function(df, pattern, replacement){
+  df %>% 
+    rename_with(.fn = ~ str_replace(.x, pattern, replacement))
+}
+
+# read in and clean data
+gardens <- read_xlsx(
+  "data/osprivateoutdoorspacereferencetables_edited_for_import.xlsx",
+  sheet = "MSOA gardens", 
+  skip = 1) %>% 
+  
+  # make variables names more conistent
+  janitor::clean_names() %>% 
+  
+  # focus on variables of interest 
+  select(country_code:msoa_name,
+         ends_with("count") |
+         starts_with("total")) %>% 
+  
+  # simplify variables names (now data by housing type has been removed)
+  replace_in_column_name("total_", "") %>% 
+  replace_in_column_name("private_outdoor_space", "gar") %>% 
+  replace_in_column_name("address", "ad") %>% 
+  replace_in_column_name("adress", "ad") %>%
+  replace_in_column_name("adresses", "ads") %>% 
+  replace_in_column_name("percentage", "perc") %>% 
+  replace_in_column_name("_m2", "") %>% 
+  replace_in_column_name("average", "ave")
+
+# display data for quick visual checks
+gardens
+  
+  
+```
+
+```{r}
+# get a quick visual summary of data types and the amount of missing data
+gardens %>% 
+  visdat::vis_dat()
+
+gardens %>% 
+  visdat::vis_miss()
+```
+
+### Indicies of multiple deprivation
+
+ONS released the 2019 IMD data at LSOA scale. MySociety have produced [IMD at various other scales](https://research.mysociety.org/sites/imd2019/about/) including the MSOA scale.
+
+```{r}
+imd_2019 <- read_csv("data/imd2019_msoa_level_data.csv")
+imd_2019
+```
+
+### Population data
+
+ONS provide [MSOA level population data](https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/middlesuperoutputareamidyearpopulationestimates). Here I use the most recent release (mid 2019).
+
+```{r}
+msoa_pops <- read_xlsx(
+  
+  "data/SAPE22DT4-mid-2019-msoa-syoa-estimates-unformatted.xlsx",
+  sheet = "Mid-2019 Persons",
+  skip = 4) %>% 
+  
+  # process variable names for conistency
+  janitor::clean_names() %>% 
+  
+  # select minimal number of columns
+  select(msoa_code, population = all_ages)
+
+msoa_pops %>% 
+  visdat::vis_miss()
+```
+
+### Transforming the data for plotting
+
+Overall average = 2.4 (2020 see [here](https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/bulletins/familiesandhouseholds/2020))
+
+2017-18 was the most year I could find on [average occupancy figures broken down by house/flat from MCHLG](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/817286/EHS_2017-18_Households_Report.pdf):
+
+-   House = 2.5 people
+
+-   High-rise flat = 1.9
+
+-   Mid-rise flat = 1.8
+
+More details [here](https://www.gov.uk/government/statistics/english-housing-survey-2017-to-2018-households).
+
+So for now, I'll make a conservative assumption that the average occupancy for a flat is 1.8 (i.e. the lower of the mid and high rise figures above).
+
+**I looked at trying to estimate more accurately, but the figures for the number of dwellings per block are not available.**
+
+2020 estimates of the numbers of high and mid rise flat can be found [here](https://www.gov.uk/government/publications/building-safety-programme-estimates-of-ews1-requirements-on-residential-buildings-in-england/building-safety-programme-estimates-of-ews1-requirements-on-residential-buildings-in-england). These can be used to calculate an average flat occupancy rate.
+
+-   12,500 blocks of high rise flats
+
+-   77,500 blocks of mid rise flats
+
+```{r}
+# calculate scaling factors for ave occupancy in an MSOA
+# from national data
+nat_ave_occ <- 2.4
+nat_house_ave_occ <- 2.5
+nat_flat_ave_occ <- 1.9
+
+flat_scale <- nat_flat_ave_occ / nat_ave_occ
+house_scale <- nat_house_ave_occ / nat_ave_occ
+
+
+people_wo_gar <- gardens %>% 
+  left_join(msoa_pops) %>% 
+  mutate(house_ad_without_gar_count = houses_ad_count - houses_ad_with_gar_count,
+         flats_ad_without_gar_count = flats_ad_count - flats_ad_with_gar_count,
+         ave_occ = population / ad_count,
+         ave_occ_flat = flat_scale * ave_occ,
+         ave_occ_house = house_scale * ave_occ,
+         pop_calc = (ave_occ_flat * flats_ad_count) + (ave_occ_house * houses_ad_count),
+         pop_diff = population - pop_calc) 
+
+ggplot(people_wo_gar, aes(pop_diff)) +
+  geom_histogram()
+  
+```
+
+May be more accurate to just use average occupancy rates for each MSOA??
+
+```{r}
+people_wo_gar <- gardens %>% 
+  left_join(msoa_pops) %>% 
+  mutate(ad_wo_gar = ad_count * (1 - perc_of_ades_with_gar),
+         ave_occ = population / ad_count,
+         people_wo_gar = round(ad_wo_gar * ave_occ)) %>% 
+  select(country_code:msoa_name, people_wo_gar)
+
+people_wo_gar
+
+ggplot(people_wo_gar, aes(people_wo_gar)) +
+  geom_histogram()
+
+```
+
+<https://www.robert-hickman.eu/post/getis-ord-heatmaps-tutorial/>
+
+```{r}
+library(sf)
+
+# focus on Englnad and Wales
+# (as shapefile for MSOAs only inlcudes England and Wales)
+people_wo_gar_EW <- people_wo_gar %>% 
+  filter(country_name == "England" |
+         country_name == "Wales")
+
+median_msoa_peop_wo_gar = median(people_wo_gar_EW$people_wo_gar, na.rm = TRUE)
+
+
+# read in MSOA boundary shapefile
+msoa_bound <- st_read("data/MSOA_bound/Middle_Layer_Super_Output_Areas_(December_2011)_Boundaries.shp") %>% 
+  select(msoa_code = msoa11cd, 
+         msoa_name = msoa11nm)
+
+# join garden data with
+people_wo_gar_spatial <- msoa_bound %>% 
+  left_join(people_wo_gar_EW) %>% 
+  
+  # median imputation for one msoa with missing
+  mutate(people_wo_gar = replace_na(people_wo_gar, median_msoa_peop_wo_gar))
+  
+
+
+# ###########################
+# simulate the locations of people without a garden
+# ###########################
+
+# random locations withi an MSOA was too computationally intesnive
+# so I went with placing the 'people' at MSOA centroids
+people <- people_wo_gar_spatial %>% 
+  mutate(people_wo_gar = round(people_wo_gar / 10),
+         geometry = st_centroid(geometry)) %>% 
+  uncount(people_wo_gar)
+
+
+sum(people_wo_gar_spatial$people_wo_gar)
+# create boundary file
+map_bound <- people_wo_gar_spatial %>%
+  summarise()# %>% 
+  #st_transform(4326)
+  
+
+# ###########################
+# create hexagonal grid
+# ###########################
+library(sp)
+
+
+# first generate points
+hex_points <- spsample(as_Spatial(map_bound), type = "hexagonal", cellsize = 10000)
+
+# then construct polygons
+hex_polygons <- st_make_grid(map_bound, 10000) 
+  
+  #HexPoints2SpatialPolygons(hex_points) %>%
+  #st_as_sf(crs = st_crs(map_bound)) # %>%
+  #clip to map boundaries
+  #st_intersection(., map_bound)
+
+# calculate number of people in each polygon
+hex_polygons$people_wo_gar <- lengths(st_intersects(hex_polygons, people)) 
+
+# ###########################
+# create the plot
+# ###########################
+# ggplot(people_wo_gar_spatial) +
+#   #geom_sf(data = map_bound, colour = "black", size = 1) +
+#   geom_sf(data = hex_polygons, fill = "black") + # , aes(fill = people_wo_gar)
+#   scale_fill_viridis_c(trans = "log", direction = -1) +
+#   #scale_color_viridis_c(trans = "log") +
+#   ggthemes::theme_map()
+
+hex_polygons <- st_make_grid(map_bound, 100000,
+                             crs = st_crs(people_wo_gar_spatial),
+                             what = "polygons",
+                             square = TRUE) %>% 
+  st_sf()
+
+# calculate number of people in each polygon
+intersects <- st_intersects(hex_polygons, people)
+intersects
+lengths(intersects)
+hex_polygons$people_wo_gar <- lengths(intersects)
+
+ggplot() +
+  geom_sf(data = hex_polygons) +
+  ggthemes::theme_map()
+
+
+ggplot() +
+  #geom_sf(data = map_bound) +
+  geom_sf(data = st_centroid(msoa_bound), colour = "grey") +
+  geom_sf(data = hex_polygons, alpha = 0.5, mapping = aes(fill = people_wo_gar)) +
+  scale_fill_viridis_c(trans = "log", direction = -1) +
+  theme_void()
+  
+hex_polygons %>% 
+  filter(people_wo_gar == 0)
+
+people_wo_gar_spatial %>% 
+  filter(people_wo_gar == 0)
+
+# ###########################
+# Smooth
+# ###########################
+
+
+
+```

@@ -1,0 +1,141 @@
+---
+title: "green_space_cleaning"
+author: "Chris J. Martin"
+date: "05/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+library(janitor)    # for data cleaning
+library(readxl)     # for readig excel files
+library(visdat)     # for a quick look at data quality
+```
+
+## Processing the data
+
+### Gardens data
+
+Dataset downloaded from [ONS](https://www.ons.gov.uk/economy/environmentalaccounts/datasets/accesstogardensandpublicgreenspaceingreatbritain) on 5th June 2021. Both gardens space and public parks datasets are the April 2020 versions.
+
+```{r}
+# a convenience function for renaming columns
+# I am sure there is a better way to do this!
+replace_in_column_name <- function(df, pattern, replacement){
+  df %>% 
+    rename_with(.fn = ~ str_replace(.x, pattern, replacement))
+}
+
+# read in and clean data
+gardens <- read_xlsx(
+  "data/osprivateoutdoorspacereferencetables_edited_for_import.xlsx",
+  sheet = "MSOA gardens", 
+  skip = 1) %>% 
+  
+  # make variables names more conistent
+  janitor::clean_names() %>% 
+  
+  # focus on variables of interest 
+  select(country_code:msoa_name,
+         ends_with("count") |
+         starts_with("total")) %>% 
+  
+  # simplify variables names (now data by housing type has been removed)
+  replace_in_column_name("total_", "") %>% 
+  replace_in_column_name("private_outdoor_space", "gar") %>% 
+  replace_in_column_name("address", "ad") %>% 
+  replace_in_column_name("adress", "ad") %>%
+  replace_in_column_name("adresses", "ads") %>% 
+  replace_in_column_name("percentage", "perc") %>% 
+  replace_in_column_name("_m2", "") %>% 
+  replace_in_column_name("average", "ave")
+
+# display data for quick visual checks
+gardens
+  
+  
+```
+
+```{r}
+# get a quick visual summary of data types and the amount of missing data
+gardens %>% 
+  visdat::vis_dat()
+
+gardens %>% 
+  visdat::vis_miss()
+```
+
+### Population data
+
+ONS provide [MSOA level population data](https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/middlesuperoutputareamidyearpopulationestimates). Here I use the most recent release (mid 2019).
+
+```{r}
+msoa_pops <- read_xlsx(
+  
+  "data/SAPE22DT4-mid-2019-msoa-syoa-estimates-unformatted.xlsx",
+  sheet = "Mid-2019 Persons",
+  skip = 4) %>% 
+  
+  # process variable names for conistency
+  janitor::clean_names() %>% 
+  
+  # select minimal number of columns
+  select(msoa_code, population = all_ages)
+
+msoa_pops %>% 
+  visdat::vis_miss()
+```
+
+### Indicies of multiple deprivation
+
+ONS released the 2019 IMD data at LSOA scale. MySociety have produced [IMD at various other scales](https://research.mysociety.org/sites/imd2019/about/) including the MSOA scale.
+
+```{r}
+imd_2019 <- read_csv("data/imd2019_msoa_level_data.csv")
+imd_2019
+```
+
+### Transforming the data for plotting
+
+Overall average = 2.4 (2020 see [here](https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/bulletins/familiesandhouseholds/2020))
+
+2017-18 was the most year I could find on [average occupancy figures broken down by house/flat from MCHLG](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/817286/EHS_2017-18_Households_Report.pdf):
+
+-   House = 2.5 people
+
+-   High-rise flat = 1.9
+
+-   Mid-rise flat = 1.8
+
+More details [here](https://www.gov.uk/government/statistics/english-housing-survey-2017-to-2018-households).
+
+So for now, I'll make a conservative assumption that the average occupancy for a flat is 1.8 (i.e. the lower of the mid and high rise figures above).
+
+**I looked at trying to estimate more accurately, but the figures for the number of dwellings per block are not available.**
+
+2020 estimates of the numbers of high and mid rise flat can be found [here](https://www.gov.uk/government/publications/building-safety-programme-estimates-of-ews1-requirements-on-residential-buildings-in-england/building-safety-programme-estimates-of-ews1-requirements-on-residential-buildings-in-england). These can be used to calculate an average flat occupancy rate.
+
+-   12,500 blocks of high rise flats
+
+-   77,500 blocks of mid rise flats
+
+```{r}
+# calculate occupancy rates
+ave_house_occ <- 2.5
+ave_flat_occ <- 1.8
+
+gardens %>% 
+  left_join(msoa_pops) %>% 
+  mutate(house_ad_without_gar_count = houses_ad_count - houses_ad_with_gar_count,
+         flats_ad_without_gar_count = flats_ad_count - flats_ad_with_gar_count,
+         pop_without_gar = (ave_house_occ * house_ad_without_gar_count) +
+           (ave_flat_occ * flats_ad_without_gar_count))
+  
+```
+
+## An initial plot
