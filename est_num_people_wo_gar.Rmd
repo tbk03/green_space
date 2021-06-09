@@ -11,6 +11,10 @@ library(readxl)     # for readig excel files
 library(visdat)     # for a quick look at data quality
 ```
 
+```{r}
+theme_set(theme_light())
+```
+
 ## Processing the data
 
 ### Gardens data
@@ -180,6 +184,10 @@ msoa_bound <- st_read("data/MSOA_bound/Middle_Layer_Super_Output_Areas_(December
   select(msoa_code = msoa11cd, 
          msoa_name = msoa11nm)
 
+# read in countries boundary shapefile (for clipping polygon grid)
+country_bound <- st_read("data/Countries_bound/Countries_(December_2017)_Boundaries.shp") %>% 
+  filter(ctry17nm == "England" | ctry17nm == "Wales")
+
 # join garden data with
 people_wo_gar_spatial <- msoa_bound %>% 
   left_join(people_wo_gar_EW) %>% 
@@ -206,27 +214,24 @@ sum(people_wo_gar_spatial$people_wo_gar)
 map_bound <- people_wo_gar_spatial %>%
   summarise()# %>% 
   #st_transform(4326)
-  
+
+# people <- st_sample(
+#   select(people_wo_gar_spatial, -people_wo_gar),
+#   size = round(people_wo_gar_spatial$people_wo_gar / 100))
 
 # ###########################
 # create hexagonal grid
 # ###########################
-library(sp)
 
-
-# first generate points
-hex_points <- spsample(as_Spatial(map_bound), type = "hexagonal", cellsize = 10000)
-
-# then construct polygons
-hex_polygons <- st_make_grid(map_bound, 10000) 
-  
-  #HexPoints2SpatialPolygons(hex_points) %>%
-  #st_as_sf(crs = st_crs(map_bound)) # %>%
-  #clip to map boundaries
-  #st_intersection(., map_bound)
+hex_polygons <- st_make_grid(map_bound, 7500,
+                             crs = st_crs(people_wo_gar_spatial),
+                             what = "polygons",
+                             square = FALSE) %>% 
+  st_sf()
 
 # calculate number of people in each polygon
-hex_polygons$people_wo_gar <- lengths(st_intersects(hex_polygons, people)) 
+intersects <- st_intersects(hex_polygons, people)
+hex_polygons$people_wo_gar <- lengths(intersects)
 
 # ###########################
 # create the plot
@@ -238,35 +243,24 @@ hex_polygons$people_wo_gar <- lengths(st_intersects(hex_polygons, people))
 #   #scale_color_viridis_c(trans = "log") +
 #   ggthemes::theme_map()
 
-hex_polygons <- st_make_grid(map_bound, 100000,
-                             crs = st_crs(people_wo_gar_spatial),
-                             what = "polygons",
-                             square = TRUE) %>% 
-  st_sf()
+# crop hexogens to outline of England and Wales
+hex_polygons_EW <- hex_polygons[country_bound, ]
 
-# calculate number of people in each polygon
-intersects <- st_intersects(hex_polygons, people)
-intersects
-lengths(intersects)
-hex_polygons$people_wo_gar <- lengths(intersects)
-
-ggplot() +
-  geom_sf(data = hex_polygons) +
-  ggthemes::theme_map()
-
+# hex_polygon_EW %>% 
+#   count(people_wo_gar)
 
 ggplot() +
   #geom_sf(data = map_bound) +
-  geom_sf(data = st_centroid(msoa_bound), colour = "grey") +
-  geom_sf(data = hex_polygons, alpha = 0.5, mapping = aes(fill = people_wo_gar)) +
+  #geom_sf(data = st_centroid(msoa_bound), colour = "grey") +
+  geom_sf(data = hex_polygons_EW, alpha = 0.5, mapping = aes(fill = people_wo_gar)) +
   scale_fill_viridis_c(trans = "log", direction = -1) +
   theme_void()
   
-hex_polygons %>% 
-  filter(people_wo_gar == 0)
-
-people_wo_gar_spatial %>% 
-  filter(people_wo_gar == 0)
+# hex_polygons %>% 
+#   filter(people_wo_gar == 0)
+# 
+# people_wo_gar_spatial %>% 
+#   filter(people_wo_gar == 0)
 
 # ###########################
 # Smooth
@@ -274,4 +268,318 @@ people_wo_gar_spatial %>%
 
 
 
+```
+
+<https://pudding.cool/process/regional_smoothing/>
+
+```{r}
+library(spdep)
+
+# convert geo-df to plain df
+hex_polygons_EW_df <- hex_polygons_EW %>% 
+  st_drop_geometry()
+
+# get centroid of each hexagon
+hex_centroids <- hex_polygons_EW %>% 
+  mutate(geometry = st_centroid(geometry))
+
+# find k nearest neighbors
+knn5 <- knn2nb(knearneigh(hex_centroids, k = 10))
+knn5 <- include.self(knn5)
+
+# Creating the localG statistic for each of counties, with a k-nearest neighbor value of 5, and round this to 3 decimal places
+localGvalues <- localG(x = as.numeric(hex_polygons_EW_df$people_wo_gar), listw = nb2listw(knn5, style = "B"), zero.policy = TRUE)
+localGvalues <- round(localGvalues,3)
+
+# Create a new data frame that only includes the hexogons and the G scores
+new_df <- hex_polygons_EW 
+new_df$values <- localGvalues
+
+new_df %>% 
+  ggplot(aes(values + 1.5)) +
+  geom_histogram()
+
+sum(new_df$values == 0)
+
+ggplot() +
+  #geom_sf(data = map_bound) +
+  #geom_sf(data = st_centroid(msoa_bound), colour = "grey") +
+  geom_sf(data = new_df, mapping = aes(fill = values + 1.5,
+                                       colour = values + 1.5)) +
+  scale_fill_viridis_c(trans = "log", option = "magma", begin = 0) +
+  scale_colour_viridis_c(trans = "log", option = "magma", begin = 0) +
+  theme_void() +
+  theme(panel.background = element_rect(fill = "white"))
+```
+
+Looking at change in park usage (in two periods in 2020) vs garden access.
+
+[Usage data from Google via ONS](https://www.ons.gov.uk/economy/environmentalaccounts/articles/howhaslockdownchangedourrelationshipwithnature/2021-04-26)
+
+```{r}
+
+# read in Google/ONS park usage data
+park_useage <- read_xlsx("data/change_in_parks_visits_2020_LA.xlsx", skip = 6) %>%
+  
+  # apply consistent naming style
+  janitor::clean_names() %>% 
+  
+  # shorten names for readiblity
+  rename(perc_ch_parks_spring_lock = percent_change_in_visits_to_and_time_spent_in_parks_during_spring_2020_lockdown,
+         perc_ch_park_summer = percent_change_in_visits_to_and_time_spent_in_parks_during_july_and_august_2020,
+         lad_code = area_codes,
+         lad_name = area_names)
+
+park_useage
+
+# read in urban / rural classification
+urb_rur_class <- read_csv("data/Rural_Urban_Classification_(2001)_for_MSOAs_in_England_and_Wales/RUC_MSOA_2001_EW_LU.csv") %>% 
+  clean_names() %>% 
+  select(lad_code = lad01cd, lad_name = lad01nm, 
+         class_name = morphology_name, 
+         class_code = morphology_code)
+
+# process urban / rural classification 
+urb_rur_LAD <- urb_rur_class %>% 
+  mutate(is_urban = class_code == 1) %>% 
+  group_by(lad_name) %>% 
+  summarise(n_tot = n(),
+            n_urban = sum(is_urban),
+            prop_urban = n_urban / n_tot) %>% 
+  mutate(is_urban_LAD = prop_urban > 0.75)
+
+# read in LA boundaries
+LA_bounds <- st_read("data/LA_bound/Local_Authority_Districts_(December_2019)_Boundaries_UK_BFC.shp") %>% 
+  rename(lad_code = lad19cd,
+         lad_name = lad19nm )
+
+LA_bounds
+
+# aggregate gardens data to LAD scale
+gardens_LAD <- gardens %>% 
+  mutate(ad_wo_gar = round(ad_count * (1 - perc_of_ades_with_gar))) %>% 
+  group_by(lad_code, lad_name) %>% 
+  summarise(ad_count = sum(ad_count),
+            ad_wo_gar = sum(ad_wo_gar),
+            prop_ad_wo_gar = ad_wo_gar / ad_count) 
+
+# join dat sets
+gar_park_use <- park_useage %>% 
+  left_join(gardens_LAD) %>% 
+  left_join(urb_rur_LAD)
+
+# check for NA created during joining
+gar_park_use %>% 
+  skimr::skim()
+
+gar_park_use %>% 
+  filter(is.na(is_urban_LAD))
+
+# produce plot
+ggplot(gar_park_use, aes(prop_ad_wo_gar, perc_ch_parks_spring_lock,
+                         colour = is_urban_LAD)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  #scale_x_log10() +
+  xlim(c(0,0.5)) +
+  facet_wrap(~is_urban_LAD)
+
+ggplot(gar_park_use, aes(prop_ad_wo_gar, perc_ch_park_summer)) +
+  geom_point()
+
+mod_1 <- rstanarm::stan_glm(perc_ch_parks_spring_lock ~ prop_ad_wo_gar, 
+                            data = filter(gar_park_use, 
+                                          prop_ad_wo_gar < 0.2 &
+                                            is_urban_LAD == TRUE), 
+                            refresh = 0)
+
+median(rstanarm::bayes_R2(mod_1))
+```
+
+```{r}
+foe_green_space <- read_xlsx("data/(FOE) Green Space Consolidated Data - England - Version 2.1.xlsx",
+                             sheet = "Local Authorities V2.1") %>% 
+  clean_names() %>% 
+  select(lad_code = la_code, 
+         lad_name = la_name,
+         pop = total_pop_from_ethnicity_data,
+         bame_pop,
+         income_index,
+         pcnt_pop_with_go_space_access,
+         green_space_area_per_capita)
+
+# join foe data to existing data
+gar_park_use_foe <- gar_park_use %>% 
+  left_join(foe_green_space)
+
+# check NAs created by joining
+skimr::skim(gar_park_use_foe)
+gar_park_use_foe %>% 
+  filter(is.na(pop))  # almost all Scotland and Wales 
+                      # (as expected as FOE is England only)
+
+
+gar_park_use_foe_eng <- gar_park_use_foe %>% 
+  filter(!is.na(pop)) %>% 
+  mutate(perc_ch_park_summer = na_if(perc_ch_park_summer, "No data"),
+         perc_ch_park_summer = as.numeric(perc_ch_park_summer),
+         prop_bame_pop = bame_pop / pop)
+
+gar_park_use_foe_eng
+
+gar_park_use_foe_eng_mod_in <- gar_park_use_foe_eng %>% 
+  select(-lad_code, -lad_name, -pop, -bame_pop,
+         -n_tot, -n_urban, -is_urban_LAD, -ad_count,-ad_wo_gar,
+         -perc_ch_park_summer, -pcnt_pop_with_go_space_access, -green_space_area_per_capita)
+  
+
+mod_2 <- rstanarm::stan_glm(perc_ch_parks_spring_lock ~ ., 
+                            data = gar_park_use_foe_eng_mod_in, 
+                            refresh = 0)
+
+median(rstanarm::bayes_R2(mod_2))
+
+mod_3 <- rstanarm::stan_glm(perc_ch_parks_spring_lock ~ prop_ad_wo_gar + prop_urban + income_index + prop_bame_pop, 
+                            data = gar_park_use_foe_eng_mod_in, 
+                            refresh = 0)
+
+median(rstanarm::bayes_R2(mod_3))
+
+ggplot(gar_park_use_foe_eng_mod_in, aes(prop_bame_pop, perc_ch_parks_spring_lock)) +
+  geom_point()
+
+p <- ggplot(filter(gar_park_use_foe_eng, prop_urban > 0.8), 
+       aes(prop_ad_wo_gar, perc_ch_parks_spring_lock, 
+           colour = prop_bame_pop, 
+           size = green_space_area_per_capita,
+           label = lad_name)) +
+  geom_point(alpha = 0.5) +
+  scale_colour_viridis_c() +
+  xlim(c(0,.5))
+  #scale_x_log10()
+
+plotly::ggplotly(p)
+
+p2 <- ggplot(data = filter(gar_park_use_foe_eng, prop_urban > 0.8),
+             aes(prop_bame_pop, prop_ad_wo_gar)) +
+  geom_point() +
+  ylim(c(0,0.5))
+
+p2
+
+p3 <- ggplot(filter(gar_park_use_foe_eng, prop_urban > 0.8), 
+       aes(prop_bame_pop, perc_ch_parks_spring_lock, 
+           colour = prop_ad_wo_gar, 
+           size = green_space_area_per_capita,
+           label = lad_name)) +
+  geom_point(alpha = 0.5) +
+  scale_colour_viridis_c(direction = -1, trans = "log", end = 0.9) +
+  xlim(c(0,.5))
+
+p3
+plotly::ggplotly(p3)
+
+p4 <- ggplot(filter(gar_park_use_foe_eng, prop_urban > 0.8), 
+       aes(perc_ch_parks_spring_lock, perc_ch_park_summer,
+           colour = prop_ad_wo_gar,
+           size = green_space_area_per_capita,
+           label = lad_name)) +
+  geom_point(alpha = 0.5)+
+  scale_colour_viridis_c(direction = -1, trans = "log", end = 0.9)
+
+p4
+
+plotly::ggplotly(p4)
+```
+
+Major cities
+
+```{r}
+la_region_lookup <- gardens %>%
+  select(region_code:lad_name) %>% 
+  distinct()
+
+london <- gar_park_use_foe_eng %>% 
+  left_join(la_region_lookup) %>% 
+  filter(region_name == "London")
+
+other_big_cities <- gar_park_use_foe_eng %>% 
+  left_join(la_region_lookup) %>% 
+  filter(region_name != "London") %>% 
+  filter(prop_urban >= 0.8) %>% 
+  slice_max(order_by = pop, n = 29)
+
+thirty_biggest_cities <- london %>% 
+  bind_rows(other_big_cities) %>% 
+  mutate(is_london = region_name == "London",
+         gs_pc_bin = cut(green_space_area_per_capita,
+                         breaks = c(0, 10, 25, 50, Inf)),
+         prop_ad_with_gar = 1 - prop_ad_wo_gar)
+
+colours <- c("grey30", "grey70", "palegreen", "palegreen4")
+
+p <- ggplot(thirty_biggest_cities, 
+       aes(prop_ad_with_gar, perc_ch_parks_spring_lock, 
+           colour = gs_pc_bin, 
+           size = gs_pc_bin,
+           label = lad_name)) +
+  geom_point(alpha = 0.5) +
+  scale_colour_manual(values = colours) +
+  #scale_colour_viridis_c() +
+  #scale_colour_gradient(low = "grey30", high = "green") +
+  xlim(c(0.5,1)) +
+  facet_wrap(~is_london)
+  #scale_x_log10()
+
+plotly::ggplotly(p)
+
+ggplot(thirty_biggest_cities) +
+  geom_histogram(mapping = aes(green_space_area_per_capita))
+
+p4 <- ggplot(thirty_biggest_cities, 
+       aes(perc_ch_parks_spring_lock, perc_ch_park_summer,
+           colour = green_space_area_per_capita,
+           size = green_space_area_per_capita,
+           label = lad_name)) +
+  geom_point(alpha = 0.5)+
+  scale_colour_viridis_c(end = 0.9) +
+  facet_wrap(~is_london)
+
+p4
+
+plotly::ggplotly(p4)
+```
+
+```{r}
+library(nngeo)
+
+# identify nearest neighbours and convert alogithmn output to a dataframe
+neigh_hex <- st_nn(hex_polygons_EW, hex_polygons_EW, k = 6)
+neigh_hex <- data.frame(matrix(unlist(neigh_hex), ncol = max(lengths(neigh_hex)), byrow = TRUE))
+
+look_up_peop_wo_gar <- function(df, row_num){
+  df[row_num, 'people_wo_gar'] %>% 
+    st_drop_geometry() %>% 
+    pluck('people_wo_gar')
+}
+
+
+# reset row numbers to avoid confusion when adding nearest neighbors
+row.names(hex_polygon_EW) <- NULL
+
+# add nearest neighbors to polygon
+hex_polygon_EW_nn <- hex_polygon_EW %>% 
+  bind_cols(neigh_hex)
+
+
+knn_interpolation <- hex_polygon_EW_nn %>% 
+  mutate(across(X1:X6, ~ look_up_peop_wo_gar(hex_polygon_EW_nn, .))) %>% 
+  st_drop_geometry() %>% 
+  mutate(knn_ave = round(rowMeans(select(., starts_with("X"))))) %>% 
+  pull(knn_ave)
+  
+hex_polygon_EW_nn %>% 
+  bind_cols(knn_interpolation)
+
+hex_polygon_interpolation
 ```
