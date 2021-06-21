@@ -1,0 +1,231 @@
+---
+title: "Park use 2021"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(RColorBrewer)
+
+theme_set(theme_light())
+```
+
+## ONS Park use data
+https://www.ons.gov.uk/economy/environmentalaccounts/articles/howhaslockdownchangedourrelationshipwithnature/2021-04-26
+
+```{r}
+
+# read in data from the .xlsx file downloaded from the ONS
+park_use <- readxl::read_xlsx("../data/park_use_2021_MENE_Google.xlsx", skip = 8) %>% 
+  janitor::clean_names()
+
+# clean the imported data
+park_use_clean <- park_use %>% 
+  
+  # convert character representation of weeks into data variables
+  separate(col = date_range, into = c("week_commencing", "week_ending"), sep = "-") %>% 
+  mutate(week_commencing = dmy(week_commencing),
+         week_ending = dmy(week_ending))
+
+park_use_clean
+
+# check for missing data
+park_use_clean %>% 
+  visdat::vis_miss()
+
+# remove nas created by the formatting of .xlsx file (trailing comment text below the data)
+park_use_clean <- park_use_clean %>% 
+  filter(!is.na(week_commencing))
+```
+```{r}
+# tidy data ahead of plotting using ggplot2
+park_use_tidy <- park_use_clean %>% 
+  pivot_longer(cols = google_gb_2020:natural_england_2010_to_2018,
+               names_to = "data_set", values_to = "percent_change") 
+
+park_use_tidy 
+
+```
+
+Recreating the figure on the ONS website ...
+
+```{r}
+park_use_tidy %>% 
+  ggplot(aes(week_ending, percent_change,
+             colour = data_set)) +
+  
+  geom_line(size = 1.5)
+```
+I think the data would benefit from smoothing using a rolling average ... and a 5 week window looks to do a better job than the week window.
+
+```{r}
+park_use_tidy_m_aves <- park_use_clean %>%
+  
+  # rename variables for ease of reference
+  rename(google_2020 = google_gb_2020,
+         baseline = natural_england_2010_to_2018) %>% 
+  
+  # create moving averages
+  mutate(baseline_ma_3 = zoo::rollmean(baseline, k = 3, fill = NA),
+         google_2020_ma_3 = zoo::rollmean(google_2020, k = 3, fill = NA),
+         baseline_ma_5 = zoo::rollmean(baseline, k = 5, fill = NA),
+         google_2020_ma_5 = zoo::rollmean(google_2020, k = 5, fill = NA)) %>% 
+
+  # put data in a tidy format for plotting
+  pivot_longer(cols = google_2020:google_2020_ma_5,
+               names_to = "data_set", values_to = "percent_change") %>% 
+  
+  # create a variable to allow faceting 2020 or baseline
+  mutate(is_2020 = str_detect(data_set, "^baseline"))
+
+
+# plot to explore the affect of the moving averages
+park_use_tidy_m_aves %>% 
+  ggplot(aes(week_ending, percent_change,
+             colour = data_set)) +
+  
+  geom_line() +
+  
+  facet_wrap(~is_2020)
+
+# five week moving averages look to have smoothed out the variablility
+park_use_tidy_m_aves %>%
+  filter(data_set == "baseline_ma_5" | data_set == "google_2020_ma_5") %>% 
+  ggplot(aes(week_ending, percent_change,
+             colour = data_set)) +
+  
+  geom_line()
+```
+
+Trying out the warming strips plot in ggplot2 based on
+https://dominicroye.github.io/en/2018/how-to-create-warming-stripes-in-r/
+
+```{r}
+park_use_diff <- park_use_tidy_m_aves %>% 
+  select(-week_number, -is_2020) %>% 
+  filter(data_set == "baseline_ma_5" | data_set == "google_2020_ma_5") %>% 
+  
+  pivot_wider(names_from = "data_set", values_from = "percent_change") %>% 
+  
+  mutate(pc_diff = google_2020_ma_5 - baseline_ma_5)
+
+park_use_diff
+  
+```
+
+```{r}
+theme_strip <- theme_minimal()+
+                 theme(axis.text.y = element_blank(),
+                       axis.line.y = element_blank(),
+                       axis.title = element_blank(),
+                       panel.grid.major = element_blank(),
+                       legend.title = element_blank(),
+                       axis.text.x = element_text(vjust = 3),
+                       panel.grid.minor = element_blank(),
+                        plot.title = element_text(size = 14, face = "bold")
+                       )
+
+
+col_strip <- brewer.pal(11, "RdBu")
+```
+
+```{r}
+
+# selected in affinity designer
+# endpoints of scale matched for same luminence
+green <- "#39945F"
+grey <- "#676767"
+
+park_use_diff %>% 
+  na.omit() %>% 
+  
+  # as there is no data for the y axis an arbitary, fixed value of 1 is used
+  ggplot(aes(x = week_commencing, y = 1, fill = pc_diff)) +
+  geom_tile() +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_gradient2(low = grey,
+                       mid = "white",
+                       high = green,
+                       
+                       # match end points of scale rather than using min/max in the data
+                       limits = c(-72,72)) +
+  #scale_fill_gradientn(colors = rev(col_strip)) +
+  theme_strip +
+  theme(legend.position = "none")
+
+ggsave("park_stripes.svg")
+```
+
+## Adding in Covid stringency index
+https://ourworldindata.org/grapher/covid-stringency-index?time=2021-06-20
+
+```{r}
+restrictions <- read_csv("../data/covid-stringency-index.csv") %>% 
+  janitor::clean_names() %>% 
+  filter(entity == "United Kingdom")
+
+restrictions
+
+ggplot(restrictions, aes(x = day, y = stringency_index)) +
+  geom_line()
+```
+
+## adding in key dates of covid-19 restrictions
+```{r}
+key_dates <- read_csv("../data/notable_dates.csv") %>% 
+  mutate(date = dmy(date))
+key_dates
+```
+
+
+```{r}
+
+# complementary colour to the the green (generated in affinity publisher)
+end_point <- "#8C3994"
+
+park_use_diff %>% 
+  na.omit() %>% 
+  left_join(select(restrictions, -entity, -code), 
+            by = c("week_commencing" = "day")) %>% 
+  
+  select(-baseline_ma_5, -google_2020_ma_5, -pc_diff) %>% 
+  
+  ggplot(aes(x = week_commencing, y = 1, 
+             # transform to bring out the contrast 
+             # as the index doesn't vary that much after the first lockdown
+             # which I think is in contrast to people's day-to-day experience
+             fill = stringency_index^2)) +
+  
+  geom_vline(data = filter(key_dates, date < dmy("01-12-2020")),
+             mapping = aes(xintercept = date,
+                           colour = event_type)) +
+  
+  geom_tile(alpha = 0.6) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_gradient(low = "white", high = end_point) +
+  #scale_fill_gradientn(colors = rev(col_strip)) +
+  theme_strip #+
+  #theme(legend.position = "none")
+  
+  
+ggsave("restriction_stripes.svg")  
+```
+
+```{r}
+ggplot(restrictions, aes(x = day, y = stringency_index)) +
+  geom_line() +
+  geom_vline(data = key_dates,
+             mapping = aes(xintercept = date,
+                           colour = event_type))
+```
+
+
+## Glasgow University park use survey
+
+
+
+```{r}
+
+```
+

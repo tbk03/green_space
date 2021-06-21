@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='svglite' width='360.00pt' height='288.00pt' viewBox='0 0 360.00 288.00'>
+<defs>
+  <style>
+    line {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    polyline {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    path {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    rect {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+  </style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHwzNjAuMDB8MC4wMHwyODguMDA='>
+    <rect x='0.00' y='0.00' width='360.00' height='288.00' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwzNjAuMDB8MC4wMHwyODguMDA=)'>
+<rect x='0.000000000000032' y='0.00' width='360.00' height='288.00' style='stroke-width: 1.07; stroke: none; fill: #FAFAFA;' />
+</g>
+<defs>
+  <clipPath id='cpMTYuMjF8MzM3Ljk4fDY5Ljg1fDI0My41Ng=='>
+    <rect x='16.21' y='69.85' width='321.77' height='173.71' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMTYuMjF8MzM3Ljk4fDY5Ljg1fDI0My41Ng==)'>
+<polyline points='16.21,235.66 337.98,235.66 ' style='stroke-width: 1.07; stroke: #BEBEBE; stroke-linecap: butt;' />
+<polyline points='16.21,183.02 337.98,183.02 ' style='stroke-width: 1.07; stroke: #BEBEBE; stroke-linecap: butt;' />
+<polyline points='16.21,130.38 337.98,130.38 ' style='stroke-width: 1.07; stroke: #BEBEBE; stroke-linecap: butt;' />
+<polyline points='16.21,77.74 337.98,77.74 ' style='stroke-width: 1.07; stroke: #BEBEBE; stroke-linecap: butt;' />
+<circle cx='103.97' cy='88.80' r='5.69' style='stroke-width: 0.71; stroke: #00BFC4; fill: #00BFC4;' />
+<circle cx='250.23' cy='79.85' r='5.69' style='stroke-width: 0.71; stroke: #00BFC4; fill: #00BFC4;' />
+<circle cx='103.97' cy='101.43' r='5.69' style='stroke-width: 0.71; stroke: #F8766D; fill: #F8766D;' />
+<circle cx='250.23' cy='100.91' r='5.69' style='stroke-width: 0.71; stroke: #F8766D; fill: #F8766D;' />
+<polyline points='103.97,101.43 250.23,100.91 ' style='stroke-width: 1.07; stroke: #F8766D; stroke-linecap: butt;' />
+<polyline points='103.97,88.80 250.23,79.85 ' style='stroke-width: 1.07; stroke: #00BFC4; stroke-linecap: butt;' />
+</g>
+<g clip-path='url(#cpMC4wMHwzNjAuMDB8MC4wMHwyODguMDA=)'>
+<text x='11.28' y='239.28' text-anchor='end' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='5.80px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='11.28' y='186.64' text-anchor='end' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='5.80px' lengthAdjust='spacingAndGlyphs'>1</text>
+<text x='11.28' y='134.00' text-anchor='end' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='5.80px' lengthAdjust='spacingAndGlyphs'>2</text>
+<text x='11.28' y='81.36' text-anchor='end' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='5.80px' lengthAdjust='spacingAndGlyphs'>3</text>
+<text x='342.91' y='239.35' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='5.80px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='342.91' y='186.66' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='11.61px' lengthAdjust='spacingAndGlyphs'>10</text>
+<text x='342.91' y='133.98' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='11.61px' lengthAdjust='spacingAndGlyphs'>20</text>
+<text x='342.91' y='81.29' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='11.61px' lengthAdjust='spacingAndGlyphs'>30</text>
+<polyline points='103.97,246.30 103.97,243.56 ' style='stroke-width: 2.13; stroke: #BEBEBE; stroke-linecap: butt;' />
+<polyline points='250.23,246.30 250.23,243.56 ' style='stroke-width: 2.13; stroke: #BEBEBE; stroke-linecap: butt;' />
+<text x='103.97' y='255.44' text-anchor='middle' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='21.74px' lengthAdjust='spacingAndGlyphs'>peak</text>
+<text x='250.23' y='255.44' text-anchor='middle' style='font-size: 10.00px; font-weight: bold; font-family: Lato;' textLength='44.92px' lengthAdjust='spacingAndGlyphs'>post-peak</text>
+<text x='177.10' y='274.41' text-anchor='middle' style='font-size: 10.00px; font-family: Lato;' textLength='19.63px' lengthAdjust='spacingAndGlyphs'>date</text>
+<rect x='141.93' y='36.13' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+<circle cx='150.57' cy='44.77' r='5.69' style='stroke-width: 0.71; stroke: #F8766D; fill: #F8766D;' />
+<line x1='143.66' y1='44.77' x2='157.48' y2='44.77' style='stroke-width: 1.07; stroke: #F8766D; stroke-linecap: butt;' />
+<rect x='180.29' y='36.13' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+<circle cx='188.93' cy='44.77' r='5.69' style='stroke-width: 0.71; stroke: #00BFC4; fill: #00BFC4;' />
+<line x1='182.01' y1='44.77' x2='195.84' y2='44.77' style='stroke-width: 1.07; stroke: #00BFC4; stroke-linecap: butt;' />
+<text x='164.19' y='48.36' style='font-size: 10.00px; font-family: Lato;' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>no</text>
+<text x='202.55' y='48.36' style='font-size: 10.00px; font-family: Lato;' textLength='14.70px' lengthAdjust='spacingAndGlyphs'>yes</text>
+<text x='16.21' y='29.56' style='font-size: 12.00px; font-family: Lato;' textLength='39.99px' lengthAdjust='spacingAndGlyphs'>subtitle</text>
+<text x='16.21' y='18.40' style='font-size: 16.00px; font-family: Lato;' textLength='28.51px' lengthAdjust='spacingAndGlyphs'>title</text>
+<text x='16.21' y='281.79' style='font-size: 8.00px; font-family: Lato;' textLength='26.13px' lengthAdjust='spacingAndGlyphs'>caption</text>
+</g>
+</svg>

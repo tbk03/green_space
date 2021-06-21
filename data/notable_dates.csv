@@ -1,0 +1,10 @@
+date,event_type,event_description,geographic_scope
+26/03/20,restriction increasing,National Lockdown 1 begins,
+15/06/20,restriction easing,Non-essential shops reopen ,England
+04/07/20,restriction easing,"Pubs, restaurants and hairdresser reopen in England",England
+14/08/20,restriction easing,"Theatre, bowling alleys and soft play reopen",England
+14/09/20,restriction increasing,'Rule of six’ limits size of gatherings,England
+22/09/20,restriction increasing,10pm curfew for hospitality,England
+14/10/20,restriction increasing,Three tier system of regional restrictions begin,England
+05/11/20,restriction increasing,National Lockdown 2 begins,England
+02/12/20,restrictions changing,A stricter three tier system of regional restrictions begins,England
