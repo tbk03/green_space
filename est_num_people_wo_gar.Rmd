@@ -100,6 +100,8 @@ msoa_pops %>%
 
 ### Transforming the data for plotting
 
+conservative estimate is the the lowest (1.8 mid-rise)
+
 Overall average = 2.4 (2020 see [here](https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/bulletins/familiesandhouseholds/2020))
 
 2017-18 was the most year I could find on [average occupancy figures broken down by house/flat from MCHLG](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/817286/EHS_2017-18_Households_Report.pdf):
@@ -307,9 +309,12 @@ ggplot() +
   geom_sf(data = new_df, mapping = aes(fill = values + 1.5,
                                        colour = values + 1.5)) +
   scale_fill_viridis_c(trans = "log", option = "magma", begin = 0) +
-  scale_colour_viridis_c(trans = "log", option = "magma", begin = 0) +
+  #scale_colour_viridis_c(trans = "log", option = "magma", begin = 0) +
   theme_void() +
-  theme(panel.background = element_rect(fill = "white"))
+  theme(panel.background = element_blank(),
+        legend.position = "none")
+
+ggsave("garden_plot.svg")
 ```
 
 Looking at change in park usage (in two periods in 2020) vs garden access.

@@ -172,6 +172,7 @@ ggplot(restrictions, aes(x = day, y = stringency_index)) +
 ```
 
 ## adding in key dates of covid-19 restrictions
+https://www.instituteforgovernment.org.uk/sites/default/files/timeline-lockdown-web.pdf
 ```{r}
 key_dates <- read_csv("../data/notable_dates.csv") %>% 
   mutate(date = dmy(date))
@@ -197,16 +198,17 @@ park_use_diff %>%
              # which I think is in contrast to people's day-to-day experience
              fill = stringency_index^2)) +
   
-  geom_vline(data = filter(key_dates, date < dmy("01-12-2020")),
-             mapping = aes(xintercept = date,
-                           colour = event_type)) +
+  geom_vline(data = filter(key_dates, date < dmy("01-12-2020") &
+                             str_detect(event_description, "^National Lockdown")),
+             mapping = aes(xintercept = date),
+             size = 2) +
   
   geom_tile(alpha = 0.6) +
   scale_y_continuous(expand = c(0, 0)) +
   scale_fill_gradient(low = "white", high = end_point) +
   #scale_fill_gradientn(colors = rev(col_strip)) +
-  theme_strip #+
-  #theme(legend.position = "none")
+  theme_strip +
+  theme(legend.position = "none")
   
   
 ggsave("restriction_stripes.svg")  
@@ -224,8 +226,104 @@ ggplot(restrictions, aes(x = day, y = stringency_index)) +
 ## Glasgow University park use survey
 
 
+https://bmjopen.bmj.com/content/11/3/e044067
+https://bmjopen.bmj.com/content/bmjopen/11/3/e044067/DC1/embed/inline-supplementary-material-1.pdf?download=true
+```{r}
+park_use_survey <- tribble(
+  ~group, ~perc_before, ~perc_after,
+  "all", 93.5, 53.8,
+  #"female", 94.2, 52.7,
+  "65+", 93.4, 47.2,
+  "BAME", 84.1, 47.8
+) %>% 
+  pivot_longer(cols = perc_before:perc_after,
+               values_to = "perc",
+               names_to = "restrictions") %>% 
+  mutate(restrictions = str_replace(restrictions, "perc_", ""))
+```
 
 ```{r}
+rest_levels = c("before", "after")
 
+p <- ggplot(park_use_survey,
+       aes(factor(restrictions, levels = rest_levels), 
+           perc,
+           colour = group)) +
+  geom_point(size = 5) +
+  geom_line(aes(group = group), size = 2)
+
+p
+```
+
+```{r}
+sysfonts::font_add_google("Lato", "Lato")
+```
+
+```{r fig.asp = 0.6, fig.width = 7, out.width = "100%"}
+explanatory_theme_2 <- function(){
+  
+  
+  grid_line_colour <- "grey"
+  text_colour <- "black"
+  background_colour <- "grey98"
+  
+  
+  ggplot2::theme_bw() %+replace%
+  
+  ggplot2::theme(
+    
+    # format text
+    text = ggplot2::element_text(family = "Lato", size = 12),
+    plot.title = ggplot2::element_text(hjust = 0,size = 16),
+    plot.subtitle = ggplot2::element_text(hjust = 0, size = 12),
+    plot.caption = ggplot2::element_text(size = 8, 
+                                         hjust = 0),
+    
+    # format legend
+    legend.position = "top",
+    legend.background = ggplot2::element_blank(),
+    legend.title = ggplot2::element_blank(),
+    legend.text = ggplot2::element_text(size = 10),
+    
+    # format axis
+    #axis.text = ggplot2::element_text(face = "bold"),
+    axis.title.x = ggplot2::element_text(),
+    axis.title.y = ggplot2::element_blank(),
+    axis.line.y = ggplot2::element_blank(),
+    axis.line.x = ggplot2::element_blank(),
+    # axis.line.x = ggplot2::element_line(colour = "black", size = 1),
+    #axis.ticks.x = ggplot2::element_line(colour = grid_line_colour, size = 1),
+    axis.ticks = ggplot2::element_blank(),
+    axis.text.x = ggplot2::element_text(margin=ggplot2::margin(t = 1, b = 10)),
+    
+    # format plot gridlines
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major.x = ggplot2::element_blank(),
+    panel.grid.major.y = ggplot2::element_line(colour = grid_line_colour),
+    
+    # format plot background
+    panel.background = ggplot2::element_blank(),
+    
+    # format overall background (i.e. background behind the entire figure
+    # including the plot, titles etc.)
+    plot.background = ggplot2::element_blank(),
+    
+    # facet labels background
+    strip.background = ggplot2::element_rect(fill=background_colour),
+    strip.text = ggplot2::element_text(colour = text_colour, face = "bold",
+                                       size = 12),
+    panel.border = ggplot2::element_blank()
+  )
+}
+
+showtext::showtext_auto()
+# showtext::showtext_auto(FALSE)
+
+p + 
+  explanatory_theme_2()
+
+showtext::showtext_auto(FALSE)
+
+ggsave("park_use_survey.svg")
 ```
 
